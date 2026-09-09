@@ -1,0 +1,14 @@
+name: Feature request
+description: Suggest a garment workflow or integration improvement.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include CLO version and a small example if useful.

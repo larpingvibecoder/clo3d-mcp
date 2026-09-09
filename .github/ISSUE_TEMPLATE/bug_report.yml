@@ -1,0 +1,33 @@
+name: Bug report
+description: Report a reproducible failure in CLO MCP.
+title: '[Bug] '
+body:
+  - type: markdown
+    attributes:
+      value: Please remove personal paths, credentials, and private project content from logs. Test on a duplicate project.
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Release, macOS version and chip, exact CLO build, Python version, and MCP client.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Reproduction steps
+      description: Include the tool name and arguments, and whether the bridge was already running.
+    validations:
+      required: true
+  - type: textarea
+    id: result
+    attributes:
+      label: Expected and actual result
+      description: Did CLO crash, freeze, return an error, or change the scene despite the error?
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Redacted logs or screenshots
+      description: Only attach material you are allowed to share publicly.
