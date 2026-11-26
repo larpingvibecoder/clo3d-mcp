@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import time
 from pathlib import Path
 from typing import Any
@@ -36,8 +37,45 @@ MEASURE_DIR = STATE_DIR / "measurements"
 CALIB_DIR = STATE_DIR / "calibration"
 for d in (SNAP_DIR, CHECKPOINT_DIR, MEASURE_DIR, CALIB_DIR):
     d.mkdir(parents=True, exist_ok=True)
-DEFAULT_ASSETS = Path(os.environ.get("CLO_MCP_ASSETS", Path.home() / "Documents" / "clo" / "CLO Assets"))
-CLO_APP = os.environ.get("CLO_APP_PATH", "/Applications/CLO.app")
+IS_WINDOWS = sys.platform == "win32"
+
+
+def _default_assets() -> Path:
+    if IS_WINDOWS:
+        return Path(os.environ.get("PUBLIC", r"C:\Users\Public")) / "Documents" / "CLO" / "CLO Assets"
+    return Path.home() / "Documents" / "clo" / "CLO Assets"
+
+
+def _default_clo_app() -> str:
+    if not IS_WINDOWS:
+        return "/Applications/CLO.app"
+    roots = {os.environ.get(v) for v in ("ProgramW6432", "ProgramFiles")} - {None}
+    found = sorted(p for r in roots for p in glob.glob(os.path.join(r, "CLO*", "CLO_Standalone*.exe")))
+    return found[-1] if found else os.path.join(os.environ.get("ProgramFiles", r"C:\Program Files"),
+                                                   "CLO Standalone OnlineAuth", "CLO_Standalone_OnlineAuth_x64.exe")
+
+
+DEFAULT_ASSETS = Path(os.environ.get("CLO_MCP_ASSETS", _default_assets()))
+CLO_APP = os.environ.get("CLO_APP_PATH", _default_clo_app())
+
+
+def _clo_executable(app: str = CLO_APP) -> str:
+    """Resolve CLO_APP_PATH on Windows: accepts the .exe or its install folder."""
+    if os.path.isdir(app):
+        exes = sorted(glob.glob(os.path.join(app, "CLO_Standalone*.exe")))
+        if exes:
+            return exes[-1]
+    return app
+
+
+def _clo_running() -> bool:
+    if IS_WINDOWS:
+        out = subprocess.run(["tasklist", "/FI", "IMAGENAME eq CLO_Standalone*", "/FO", "CSV", "/NH"],
+                             capture_output=True, text=True, timeout=10,
+                             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return "clo_standalone" in out.stdout.lower()
+    out = subprocess.run(["pgrep", "-f", "CLO_Standalone"], capture_output=True, text=True, timeout=5)
+    return bool(out.stdout.strip())
 
 INSTRUCTIONS = """Tools for driving CLO3D (garment CAD + cloth simulation) through a Python bridge running inside CLO.
 Start with clo_status. If the bridge is down, follow its instructions (one click in CLO: Plugins > start_bridge).
@@ -80,8 +118,7 @@ async def _call(cmd: str, params: dict | None = None, timeout: float | None = No
 def _bridge_status() -> dict:
     status = {"bridge": "down", "clo_running": False}
     try:
-        out = subprocess.run(["pgrep", "-f", "CLO_Standalone"], capture_output=True, text=True, timeout=5)
-        status["clo_running"] = bool(out.stdout.strip())
+        status["clo_running"] = _clo_running()
     except Exception:
         pass
     try:
@@ -248,15 +285,25 @@ async def clo_status() -> dict:
 
 @server.tool()
 async def clo_launch(with_bridge: bool = True) -> str:
-    """Launch CLO (macOS). Passing -python clo_bridge.py is attempted, but CLO 2026.1 did not run it at startup in testing,
-    so after CLO is up start the bridge with the menu item Plugins > start_bridge (or ask the user to click it)."""
+    """Launch CLO (macOS or Windows). Passing -python clo_bridge.py is attempted, but CLO 2026.1 did not run it at startup
+    in testing, so after CLO is up start the bridge with the menu item Plugins > start_bridge (or ask the user to click it)."""
     st = _bridge_status()
     if st.get("clo_running"):
         return "CLO is already running. " + ("Bridge is up." if st["bridge"] == "up" else START_HELP)
-    args = ["open", "-a", CLO_APP]
-    if with_bridge:
-        args += ["--args", "-python", str(BRIDGE_FILE)]
-    subprocess.Popen(args)
+    if IS_WINDOWS:
+        exe = _clo_executable()
+        if not os.path.isfile(exe):
+            raise ValueError(f"CLO executable not found: {exe!r}; set CLO_APP_PATH to CLO_Standalone_*.exe or its folder")
+        args = [exe] + (["-python", str(BRIDGE_FILE)] if with_bridge else [])
+        # Detach fully: CLO must not inherit this server's stdio, which carries the MCP protocol.
+        subprocess.Popen(args, cwd=os.path.dirname(exe), stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                         stderr=subprocess.DEVNULL, close_fds=True,
+                         creationflags=subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP)
+    else:
+        args = ["open", "-a", CLO_APP]
+        if with_bridge:
+            args += ["--args", "-python", str(BRIDGE_FILE)]
+        subprocess.Popen(args)
     return ("CLO is starting. Wait ~60 s (login, splash, possible notice dialog), then start the bridge with the CLO menu "
             "Plugins > start_bridge and call clo_status.")
 
@@ -544,7 +591,7 @@ async def simulation_reset() -> dict:
 
 @server.tool()
 async def checkpoint_save(name: str = "") -> dict:
-    """Save the current project as a named checkpoint (.zprj under ~/.clo3d-mcp/checkpoints) so a failed edit or
+    """Save the current project as a named checkpoint (.zprj under <home>/.clo3d-mcp/checkpoints) so a failed edit or
     seam can be undone with checkpoint_restore."""
     name = name or time.strftime("cp_%Y%m%d_%H%M%S")
     path = str(CHECKPOINT_DIR / f"{name}.zprj")

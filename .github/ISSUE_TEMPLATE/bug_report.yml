@@ -9,7 +9,7 @@ body:
     id: environment
     attributes:
       label: Environment
-      description: Release, macOS version and chip, exact CLO build, Python version, and MCP client.
+      description: Release, OS (macOS version and chip, or Windows version), exact CLO build, Python version, and MCP client.
     validations:
       required: true
   - type: textarea

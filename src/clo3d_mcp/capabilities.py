@@ -45,8 +45,8 @@ def register(server, call, bridge_dir):
         """Routing guide for CLO functions absent from the API, including desktop prerequisites and verification."""
         return {
             'route': ['Search clo_api_catalog and inspect clo_api_describe.', 'Use a high-level tool or clo_api_call for supported operations.', 'For UI-only features, inspect clo_ui_state and clo_ui_screenshot, then use clo_ui_action.', 'Inspect the new state after EACH UI action and verify the intended result. Never infer success from input delivery.'],
-            'codex_desktop': 'The connected Computer Use tool can control /Applications/CLO.app directly, with accessibility elements, screenshots, click, drag, scroll, text and keyboard shortcuts. Prefer it when available.',
-            'standalone_mcp': 'Install the macos extra for native accessibility and input. Grant Accessibility and Screen Recording to the MCP host in macOS settings. UI tools run locally on the Mac hosting this server; they do not expose a network listener.',
+            'codex_desktop': 'A connected Computer Use tool can control the CLO application directly, with accessibility elements, screenshots, click, drag, scroll, text and keyboard shortcuts. Prefer it when available.',
+            'standalone_mcp': 'macOS only: install the macos extra for native accessibility and input, and grant Accessibility and Screen Recording to the MCP host in macOS settings. UI tools run locally on the Mac hosting this server; they do not expose a network listener. On Windows the clo_ui_* tools are unavailable; use the API tools or a client computer-use tool.',
             'limits': 'API presence is not proof that every overload works. UI availability depends on selection, mode, dialogs and license. No exhaustive guarantee of every CLO function. Do not replay an API failure through UI without checking whether it already changed the scene.',
         }
 
@@ -56,7 +56,7 @@ def register(server, call, bridge_dir):
 
     @server.tool()
     async def clo_ui_state(max_nodes: int = 1500, max_depth: int = 16) -> dict:
-        """Inspect CLO accessibility hierarchy, menus, dialogs, values and supported actions. Returns a snapshot token; use it for the next UI action. No bridge needed. Requires macos extra and Accessibility permission."""
+        """Inspect CLO accessibility hierarchy, menus, dialogs, values and supported actions. Returns a snapshot token; use it for the next UI action. No bridge needed. macOS only: requires macos extra and Accessibility permission."""
         async with ui_lock:
             return await anyio.to_thread.run_sync(lambda: desktop.state(max_nodes, max_depth))
 

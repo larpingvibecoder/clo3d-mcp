@@ -21,8 +21,26 @@ A package-content scan excludes local environments, runtime state, proprietary a
 - No live garment mutation was performed as part of release validation. The current garment project was preserved.
 - Native macOS UI tools have unit coverage but no comprehensive end-to-end validation here.
 - CI configuration is supplied; a GitHub-hosted CI run cannot be claimed until the repository is pushed and that run finishes.
-- Other CLO builds, Windows bridge behavior, and exhaustive API overloads are unverified.
+- Other CLO builds and exhaustive API overloads are unverified. For Windows status see the Windows section below.
 - No production-pattern, fit, stability, or game-export certification is implied.
+
+## Windows port (unreleased) — 2026-11-25
+
+Checked on Windows 11 (x64), external Python 3.12 via uv, CLO Standalone OnlineAuth **2026.1.382** installed under `C:\Program Files\CLO Standalone OnlineAuth` (ships `Qt6Core.dll` and embedded Python 3.11.8).
+
+Offline:
+
+- `Qt6Core.dll` exports `QCoreApplication::processEvents` under the MSVC names the bridge uses; with that DLL loaded into a standalone Python, the bridge bound it through `ctypes.PyDLL` and 1000 `pump()` calls returned normally.
+- Regression suite: **26 tests passed** (20 existing, plus MSVC symbol binding, Qt lookup failure handling, pump-fault shutdown, GIL-held binding on Windows, CLO executable resolution and the `tasklist` process check).
+- MCP stdio smoke test (**48 tools**, offline preview), `uv build`, and `scripts/check_wheel.py` (isolated wheel install from a path with spaces) passed.
+- Server defaults resolved the installed CLO executable and `C:\Users\Public\Documents\CLO\CLO Assets`, and detected the running CLO process.
+
+Live, inside CLO:
+
+- First attempt (bridge calling Qt through `ctypes.CDLL`): served for about 20 s, then `processEvents` raised an access violation reading `0x10`, consistent with a NULL Python thread state because `CDLL` releases the GIL while CLO runs Python from Qt event handlers. CLO survived. Fix: call Qt with the GIL held (`PyDLL`); a pump fault now stops the bridge with status `pump_error`.
+- After the fix, same CLO session: the bridge served for more than 4 minutes with CLO responsive. `tests/verify_live.py` passed: 48 MCP tools, `clo_status` bridge up, **1056 live API entries** with no unavailable modules, read-only `pattern_api.GetPatternCount` and its live docs. `scene_info` returned correctly. The server was also connected to Claude Desktop through `claude_desktop_config.json`. No garment was modified.
+
+Not yet verified on Windows: long sessions, simulation and other long-running calls, live garment edits (building, sewing, fabrics, saving), and whether `clo_launch`'s `-python` argument is honored. The `clo_ui_*` desktop tools are not implemented on Windows.
 
 ## Reproduce checks
 

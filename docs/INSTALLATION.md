@@ -1,11 +1,13 @@
-# Install CLO MCP on a Mac
+# Install CLO MCP on macOS or Windows
 
 This guide uses the source release and `uv`, a tool that installs Python and the package dependencies for you. You do not need to understand Python to follow the setup. Instructions were prepared for the experimental v0.1.0-alpha.1 release.
 
+The steps below are written for macOS. **On Windows**, follow the same steps with the substitutions in [Windows notes](#windows-notes) at the end of this guide.
+
 ## 1. Check what you need
 
-- A Mac with a licensed, working CLO installation. The development environment used CLO 2026.1.224. Other CLO versions are unverified.
-- A local MCP-compatible assistant, such as Codex, able to launch a command on this Mac.
+- A Mac or Windows PC with a licensed, working CLO installation. The development environment used CLO 2026.1.224. Other CLO versions are unverified.
+- A local MCP-compatible assistant, such as Codex, able to launch a command on this computer.
 - An internet connection for the initial Python/dependency installation.
 - Your own CLO avatar/fabric library for workflows using those assets.
 
@@ -94,7 +96,7 @@ Copy the helper's **Generic MCP JSON** into the MCP configuration your client do
 }
 ```
 
-Restart/reconnect that client. A browser-only or remotely hosted assistant cannot reach this local bridge just by being given `localhost:5077`; the MCP process must run on your Mac.
+Restart/reconnect that client. A browser-only or remotely hosted assistant cannot reach this local bridge just by being given `localhost:5077`; the MCP process must run on the same computer as CLO.
 
 ## 7. Verify the connection without changing a garment
 
@@ -112,7 +114,7 @@ For a first live edit, work on a duplicate project and ask for a checkpoint firs
 
 ## 8. Optional desktop tools
 
-The main API workflow does not require this extra. To enable the experimental native macOS UI tools:
+The main API workflow does not require this extra. To enable the experimental native macOS UI tools (macOS only; on Windows the `clo_ui_*` tools return an error and the API tools are the supported route):
 
 ```sh
 uv sync --no-editable --python 3.12 --locked --extra macos
@@ -132,8 +134,20 @@ Before upgrading: save the CLO project, stop the old bridge, update this checkou
 | --- | --- | --- |
 | `CLO_MCP_HOST` | `127.0.0.1` | Local loopback only; network hosts are rejected |
 | `CLO_MCP_PORT` | `5077` | Must match in the external server and embedded bridge |
-| `CLO_MCP_STATE` | `~/.clo3d-mcp` | Status, log, snapshots, caches, checkpoints; use the same absolute path on both sides |
-| `CLO_APP_PATH` | `/Applications/CLO.app` | App launch and optional desktop targeting |
-| `CLO_MCP_ASSETS` | `~/Documents/clo/CLO Assets` | Fallback asset folder; the live CLO asset folder is preferred |
+| `CLO_MCP_STATE` | `~/.clo3d-mcp` (Windows: `%USERPROFILE%\.clo3d-mcp`) | Status, log, snapshots, caches, checkpoints; use the same absolute path on both sides |
+| `CLO_APP_PATH` | macOS: `/Applications/CLO.app`; Windows: the first `CLO_Standalone*.exe` found under `Program Files\CLO*` | App launch and optional desktop targeting. On Windows, the `.exe` or its folder |
+| `CLO_MCP_ASSETS` | macOS: `~/Documents/clo/CLO Assets`; Windows: `C:\Users\Public\Documents\CLO\CLO Assets` | Fallback asset folder; the live CLO asset folder is preferred |
 
 Environment variables in your assistant configuration affect the external server only. For bridge variables, set `os.environ[...]` in CLO's Python editor before the launch line. Leave defaults alone for a normal single-instance installation.
+
+## Windows notes
+
+Windows support is newer than macOS support; see [VALIDATION.md](VALIDATION.md) for what has been checked. Differences from the steps above:
+
+- **Step 2:** right-click the ZIP in File Explorer and choose **Extract All**. A folder such as `C:\Users\<you>\clo3d-mcp` is a good permanent location.
+- **Step 3:** install uv from PowerShell with `winget install --id=astral-sh.uv -e`, or use the PowerShell installer on the [official uv installation page](https://docs.astral.sh/uv/getting-started/installation/). Open a new PowerShell window and run `uv --version`.
+- **Step 4:** in PowerShell, run `cd "C:\path\to\clo3d-mcp"` (or type `cd ` and drag the folder into the window), then run the same two `uv` commands.
+- **Steps 5–6:** the helper prints Windows paths, such as `...\.venv\Scripts\python.exe`. Copy them exactly. In MCP JSON, backslashes must be doubled (`"C:\\Users\\you\\clo3d-mcp\\.venv\\Scripts\\python.exe"`) or replaced with forward slashes.
+- **Windows Firewall:** the bridge listens only on `127.0.0.1`, so no firewall exception is needed. If Windows asks whether to allow CLO on networks, you can decline.
+- **Step 8:** the native UI tools are macOS only. Do not install the `macos` extra on Windows.
+- **Stop file:** `%USERPROFILE%\.clo3d-mcp\bridge.stop`.

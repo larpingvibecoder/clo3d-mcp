@@ -18,7 +18,8 @@ class Desktop:
 
     def backend(self):
         if sys.platform != 'darwin':
-            raise RuntimeError('Desktop control requires macOS')
+            raise RuntimeError('clo_ui_* desktop tools are implemented for macOS only. On %s use the API tools '
+                               '(clo_api_catalog / clo_api_call / clo_run_python) or your client\'s own computer-use tool.' % sys.platform)
         try:
             import ApplicationServices as AX
             import Quartz as Q

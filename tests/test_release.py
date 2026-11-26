@@ -95,3 +95,82 @@ def test_runtime_syntax_error_does_not_repeat_code(tmp_path, monkeypatch):
     with pytest.raises(SyntaxError):
         b.cmd_exec({'code': 'fail()'})
     assert calls == [1]
+
+
+def test_bridge_binds_msvc_qt_symbols(tmp_path, monkeypatch):
+    """Windows Qt builds export MSVC-mangled names; the int-timeout overload must get two int arguments."""
+    b = load_bridge(tmp_path, monkeypatch)
+    calls = []
+    class FakeFn:
+        def __call__(self, *args):
+            calls.append(args)
+    class FakeLib:
+        pass
+    lib = FakeLib()
+    setattr(lib, b._MSVC_SYMBOLS[1], FakeFn())
+    assert b._bind_process_events(lib, b._MSVC_SYMBOLS) is True
+    b.pump()
+    assert calls == [(0, 5)]
+    assert b._bind_process_events(FakeLib(), b._MSVC_SYMBOLS) is False
+
+
+def test_bridge_qt_lookup_failure_is_reported_not_raised(tmp_path, monkeypatch):
+    b = load_bridge(tmp_path, monkeypatch)
+    def broken():
+        raise OSError('no Qt here')
+        yield
+    with patch.object(b, '_qt_libraries', broken):
+        assert b._load_process_events() is False
+
+
+def test_clo_executable_accepts_install_folder(tmp_path):
+    exe = tmp_path / 'CLO_Standalone_OnlineAuth_x64.exe'
+    exe.write_bytes(b'')
+    assert server._clo_executable(str(tmp_path)) == str(exe)
+    assert server._clo_executable(str(exe)) == str(exe)
+
+
+def test_windows_process_check_uses_tasklist(monkeypatch):
+    monkeypatch.setattr(server, 'IS_WINDOWS', True)
+    result = type('R', (), {'stdout': '"CLO_Standalone_OnlineAuth_x64.exe","1234","Console","1","2,000,000 K"\n'})()
+    with patch.object(server.subprocess, 'run', return_value=result) as run:
+        assert server._clo_running() is True
+    assert run.call_args.args[0][0] == 'tasklist'
+    result.stdout = 'INFO: No tasks are running which match the specified criteria.\n'
+    with patch.object(server.subprocess, 'run', return_value=result):
+        assert server._clo_running() is False
+
+
+def test_pump_crash_stops_bridge_and_records_status(tmp_path, monkeypatch):
+    """A native fault in processEvents (OSError on Windows) must end the loop, not pump again."""
+    import json
+    monkeypatch.setenv('CLO_MCP_PORT', '0')
+    b = load_bridge(tmp_path, monkeypatch)
+    calls = []
+    def crash():
+        calls.append(1)
+        raise OSError('exception: access violation reading 0x0000000000000010')
+    with patch.object(b, '_load_process_events', return_value=True), patch.object(b, '_load_ops'), \
+            patch.object(b, '_process_events', crash):
+        b.serve()
+    assert calls == [1]
+    assert json.loads((tmp_path/'bridge_status.json').read_text())['state'] == 'pump_error'
+    assert 'Qt event pump failed' in (tmp_path/'bridge.log').read_text()
+    assert builtins._CLO3D_MCP_ACTIVE is False
+
+
+@pytest.mark.skipif(sys.platform != 'win32', reason='Windows Qt lookup')
+def test_windows_qt_bound_with_gil_held(tmp_path, monkeypatch):
+    """CLO runs Python inside Qt event handlers; the call must not release the GIL (PyDLL, not CDLL)."""
+    b = load_bridge(tmp_path, monkeypatch)
+    class Kernel32:
+        class GetModuleHandleW:
+            argtypes = restype = None
+            def __new__(cls, name):
+                return 1234 if name == 'Qt6Core.dll' else None
+    with patch.object(b.ctypes, 'WinDLL', return_value=Kernel32), \
+            patch.object(b.ctypes, 'PyDLL') as pydll, patch.object(b.ctypes, 'CDLL') as cdll:
+        libs = list(b._qt_libraries())
+    assert len(libs) == 1 and libs[0][1] is b._MSVC_SYMBOLS
+    pydll.assert_called_once_with('Qt6Core.dll', handle=1234)
+    cdll.assert_not_called()
