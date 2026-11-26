@@ -16,7 +16,7 @@ Do not immediately repeat the command. It may have completed, partially changed 
 
 ## Qt event pump not found
 
-The bridge now logs `unsupported_qt` and stops instead of starting a loop that freezes the UI. This means the native Qt symbols expected by this bridge are absent in that CLO build/platform. Report the CLO build and macOS version. Do not remove this check as an installation workaround.
+The bridge now logs `unsupported_qt` and stops instead of starting a loop that freezes the UI. This means the native Qt symbols expected by this bridge are absent in that CLO build/platform. Report the CLO build and your macOS or Windows version. Do not remove this check as an installation workaround.
 
 ## Address already in use
 
@@ -36,11 +36,11 @@ Preview uses standard default measurements unless `use_scene_measurements=True`.
 
 ## Optional desktop tools fail
 
-Install the `macos` extra, grant the required macOS permissions to the correct host, and obtain a fresh `clo_ui_state` before an action. UI snapshot tokens expire and are consumed by an action. On Retina displays, screen points and screenshot pixels can differ. Do not guess canvas coordinates.
+These tools are macOS only; on Windows they always return an error, so use the API tools instead. On macOS, install the `macos` extra, grant the required macOS permissions to the correct host, and obtain a fresh `clo_ui_state` before an action. UI snapshot tokens expire and are consumed by an action. On Retina displays, screen points and screenshot pixels can differ. Do not guess canvas coordinates.
 
 ## Useful local files
 
-Default location: `~/.clo3d-mcp/`.
+Default location: `~/.clo3d-mcp/` (Windows: `%USERPROFILE%\.clo3d-mcp\`).
 
 - `bridge.log`: bridge startup, command loading, and other diagnostic messages.
 - `bridge_status.json`: last reported state; a file left after a crash may be stale.
@@ -48,8 +48,8 @@ Default location: `~/.clo3d-mcp/`.
 - `snapshots/`: exported preview images.
 - `measurements/` and `calibration/`: cached avatar data.
 
-On macOS, application crash reports can be found through Console or `~/Library/Logs/DiagnosticReports/`. Logs and reports may contain usernames, project paths, or garment details. Redact those before attaching them to a public issue.
+On macOS, application crash reports can be found through Console or `~/Library/Logs/DiagnosticReports/`. On Windows, look in **Event Viewer > Windows Logs > Application** and in `%LOCALAPPDATA%\CrashDumps`. Logs and reports may contain usernames, project paths, or garment details. Redact those before attaching them to a public issue.
 
 ## A useful bug report
 
-Include the release version, macOS version/chip, CLO exact build, external Python version, client name, the tool and arguments used, expected vs actual behavior, and a short redacted log excerpt. State whether CLO crashed, froze, returned an error, or changed the scene despite reporting failure. Start with the smallest reproducible example on a disposable project.
+Include the release version, OS version (macOS version/chip or Windows version), CLO exact build, external Python version, client name, the tool and arguments used, expected vs actual behavior, and a short redacted log excerpt. State whether CLO crashed, froze, returned an error, or changed the scene despite reporting failure. Start with the smallest reproducible example on a disposable project.

@@ -1,11 +1,11 @@
 [project]
 name = "clo3d-mcp"
 version = "0.1.0a1"
-description = "Experimental local MCP integration for CLO garment workflows on macOS"
+description = "Experimental local MCP integration for CLO garment workflows on macOS and Windows"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-classifiers = ["Development Status :: 3 - Alpha", "Operating System :: MacOS :: MacOS X", "Programming Language :: Python :: 3"]
+classifiers = ["Development Status :: 3 - Alpha", "Operating System :: MacOS :: MacOS X", "Operating System :: Microsoft :: Windows", "Programming Language :: Python :: 3"]
 requires-python = ">=3.11"
 dependencies = ["mcp>=2.2.0,<3", "anyio>=4,<5"]
 

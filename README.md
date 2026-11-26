@@ -4,7 +4,7 @@
 
 CLO MCP connects a local MCP-compatible AI assistant to CLO's Python API. It provides tools for inspecting a project, editing patterns, sewing, changing fabrics, simulating, taking snapshots, and saving checkpoints. It also includes an experimental parametric drafting engine for dresses, tops, and skirts.
 
-**v0.1.0-alpha.1 · Experimental · macOS · MIT**
+**v0.1.0-alpha.1 · Experimental · macOS & Windows · MIT**
 
 This is an independent community integration, not an official CLO product. You need your own licensed installation of CLO and a local MCP client. CLO, avatars, fabrics, commercial reference images, Blender, and inZOI assets are not included.
 
@@ -28,13 +28,13 @@ This is an independent community integration, not an official CLO product. You n
 | Draft a starting point | Preview a dress/top/skirt plan offline, then build and refine it in CLO |
 | Discover the installed API | Search live names and docstrings, inspect overloads, make structured API calls |
 | Advanced operations | Execute Python inside CLO with `clo_run_python` |
-| Optional Mac UI fallback | Accessibility inspection, screenshots, and input tools with separate permissions |
+| Optional Mac UI fallback | Accessibility inspection, screenshots, and input tools with separate permissions (macOS only) |
 
 The drafting engine does **not** automatically recreate an arbitrary photograph, produce production-approved sewing patterns, or guarantee fit on every avatar. Its built-in garment categories are dresses, tops, and skirts; trousers/jorts need custom work. Mesh imports may appear in 3D without editable 2D sewing patterns. The UI fallback is experimental and has not received comprehensive live validation.
 
-## Quick start for users familiar with Terminal
+## Quick start for users familiar with a terminal
 
-Download and extract the source release, open Terminal in its folder, then:
+Download and extract the source release, open Terminal (macOS) or PowerShell (Windows) in its folder, then:
 
 ```sh
 uv sync --no-editable --python 3.12 --locked
@@ -51,7 +51,9 @@ Start on a duplicate project. Keep tool approvals enabled in your MCP client. Re
 
 ## Compatibility and evidence
 
-The original integration has been used with **CLO 2026.1.224 on macOS**, whose embedded Python is 3.11. The release's external server is validated locally with Python 3.12. The package declares Python 3.11+; CI covers 3.11 and 3.12 on macOS and Linux for offline tests only. This is **not** a claim that CLO runs on Linux or that the bridge works on Windows.
+The original integration has been used with **CLO 2026.1.224 on macOS**, whose embedded Python is 3.11. The release's external server is validated locally with Python 3.12. The package declares Python 3.11+; CI covers 3.11 and 3.12 on macOS, Windows, and Linux for offline tests only. This is **not** a claim that CLO runs on Linux.
+
+**Windows:** the bridge locates the Qt event pump in `Qt6Core.dll` (or `Qt5Core.dll`) using MSVC symbol names, and the server finds CLO under `Program Files`. This was checked against the `Qt6Core.dll` shipped with CLO on Windows 11. The native UI tools (`clo_ui_*`) are macOS only. See [VALIDATION.md](docs/VALIDATION.md) for what has been checked live.
 
 The bridge pumps CLO's Qt event loop using native symbols. It now refuses to serve if it cannot find the event pump, rather than deliberately freezing the UI. Native CLO operations can still crash or hang the application. A failed or timed-out mutation may already have changed the scene: inspect before retrying.
 

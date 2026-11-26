@@ -57,16 +57,51 @@ def log(msg):
 _process_events = None
 
 
+# Itanium C++ ABI names (macOS/Linux, clang/gcc builds of Qt).
+_ITANIUM_SYMBOLS = ("_ZN16QCoreApplication13processEventsE6QFlagsIN10QEventLoop17ProcessEventsFlagEE",
+                    "_ZN16QCoreApplication13processEventsE6QFlagsIN10QEventLoop17ProcessEventsFlagEEi")
+# MSVC names (Windows builds of Qt5/Qt6). QFlags<int-enum> is a 4-byte struct, passed in a register like an int on x64.
+_MSVC_SYMBOLS = ("?processEvents@QCoreApplication@@SAXV?$QFlags@W4ProcessEventsFlag@QEventLoop@@@@@Z",
+                 "?processEvents@QCoreApplication@@SAXV?$QFlags@W4ProcessEventsFlag@QEventLoop@@@@H@Z")
+_WINDOWS_QT_CORE = ("Qt6Core.dll", "Qt5Core.dll", "Qt6Cored.dll", "Qt5Cored.dll")
+
+
+def _qt_libraries():
+    """Yield (library, symbol names) candidates for the Qt core library already loaded in this process."""
+    if sys.platform == "win32":
+        from ctypes import wintypes
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetModuleHandleW.argtypes = [wintypes.LPCWSTR]
+        kernel32.GetModuleHandleW.restype = wintypes.HMODULE
+        for name in _WINDOWS_QT_CORE:
+            handle = kernel32.GetModuleHandleW(name)   # never loads a second copy of Qt
+            if handle:
+                # PyDLL keeps the GIL held during the call. CDLL would release it, and CLO on Windows runs Python
+                # (e.g. its API logging) from inside event handlers: with the GIL released that dereferences a NULL
+                # thread state (access violation reading 0x10, CLO 2026.1.382).
+                yield ctypes.PyDLL(name, handle=handle), _MSVC_SYMBOLS
+        return
+    yield ctypes.CDLL(None), _ITANIUM_SYMBOLS
+
+
 def _load_process_events():
+    try:
+        for lib, symbols in _qt_libraries():
+            if _bind_process_events(lib, symbols):
+                return True
+    except (OSError, TypeError, AttributeError) as exc:
+        log("cannot inspect Qt library: %r" % (exc,))
+    return False
+
+
+def _bind_process_events(lib, symbols):
     global _process_events
-    lib = ctypes.CDLL(None)
-    for sym in ("_ZN16QCoreApplication13processEventsE6QFlagsIN10QEventLoop17ProcessEventsFlagEE",
-                "_ZN16QCoreApplication13processEventsE6QFlagsIN10QEventLoop17ProcessEventsFlagEEi"):
+    for sym in symbols:
         try:
             fn = getattr(lib, sym)
         except AttributeError:
             continue
-        if sym.endswith("Ei"):
+        if sym.endswith(("Ei", "H@Z")):
             fn.argtypes = [ctypes.c_int, ctypes.c_int]
             fn.restype = None
             _process_events = lambda: fn(0, 5)
@@ -251,7 +286,11 @@ def serve():
         return
     _load_ops()
     srv = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+        # Windows: SO_REUSEADDR would let a second bridge (or another program) bind the same port.
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+    else:
+        srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     try:
         srv.bind((HOST, PORT))
     except OSError as exc:
@@ -268,6 +307,7 @@ def serve():
     clients = {}          # sock -> bytearray buffer
     last_status = time.time()
     stopping = False
+    final_state = "stopped"
     try:
         while not stopping:
             try:
@@ -318,7 +358,15 @@ def serve():
                             response = {"id": request.get("id"), "ok": True, "result": {"stopping": True}}
                             stopping = True
                     _send(s, response)
-            pump()
+            try:
+                pump()
+            except OSError:
+                # Windows ctypes turns a native access violation into OSError. Qt's state may now be inconsistent,
+                # so stop serving instead of pumping again.
+                log("Qt event pump failed; stopping the bridge. Save your work and restart CLO before retrying.\n"
+                    + traceback.format_exc())
+                final_state = "pump_error"
+                break
             now = time.time()
             if now - last_status > 3:
                 last_status = now
@@ -333,7 +381,7 @@ def serve():
                 pass
         srv.close()
         builtins._CLO3D_MCP_ACTIVE = False
-        write_status("stopped")
+        write_status(final_state)
         if os.path.exists(STOP_FILE):
             try:
                 os.remove(STOP_FILE)

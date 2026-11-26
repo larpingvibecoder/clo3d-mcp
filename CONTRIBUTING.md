@@ -1,6 +1,6 @@
 # Contributing
 
-This is an experimental macOS integration. Small, reproducible improvements to portability, error reporting, fitting, and stability are welcome.
+This is an experimental macOS and Windows integration. Small, reproducible improvements to portability, error reporting, fitting, and stability are welcome.
 
 1. Fork and clone the repository, create a branch, then run `uv sync --no-editable --python 3.12 --locked`.
 2. Run `uv run --no-editable pytest -q` and `uv run --no-editable python tests/smoke_stdio.py` before and after the change.
